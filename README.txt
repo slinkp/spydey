@@ -25,4 +25,4 @@ For smoke testing, I typically run it like::
 There are a number of other command-line options, many stolen from
 wget. Use --help to see what they are.
 
-Home page is at http://github.com/slinkp/spyder.
+Home page is at http://github.com/slinkp/spydey.
