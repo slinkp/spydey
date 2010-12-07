@@ -34,6 +34,8 @@ else:
 
 PROFILE_REPORT_SIZE=20
 
+queuetypes = {}
+
 class FifoUrlQueue(object):
     """
     A URL queue is responsible for storing a queue of unique URLs,
@@ -69,6 +71,7 @@ class FifoUrlQueue(object):
     def pop(self):
         return self.urls.popleft()
 
+queuetypes['breadth-first'] = FifoUrlQueue
 
 class RandomizingUrlQueue(FifoUrlQueue):
 
@@ -89,6 +92,7 @@ class RandomizingUrlQueue(FifoUrlQueue):
         # This is O(N), a dict keyed by ints might be a better storage.
         return self.urls.pop(i)
 
+queuetypes['random'] = RandomizingUrlQueue
 
 class DepthFirstQueue(FifoUrlQueue):
 
@@ -111,18 +115,28 @@ class DepthFirstQueue(FifoUrlQueue):
     def pop(self):
         return self.urls.pop()
 
+queuetypes['depth-first'] = DepthFirstQueue
 
 class HybridTraverseQueue(DepthFirstQueue):
     """
-    Alternate randomly between depth-first and breadth-first traversal
+    Alternate between depth-first and breadth-first traversal
     behavior.
     """
+    def __init__(self):
+        super(HybridTraverseQueue, self).__init__()
+        self.next = self.urls.pop
 
     def pop(self):
-        if random.choice((True, False)):
-            return self.urls.popleft()
-        return self.urls.pop()
+        if self.next == self.urls.pop:
+            self.next = self.urls.popleft
+            logger.debug('next: left')
+        else:
+            self.next = self.urls.pop
+            logger.debug('next: right')
+        popped = self.next()
+        return popped
 
+queuetypes['hybrid'] = HybridTraverseQueue
 
 class PatternPrioritizingUrlQueue(RandomizingUrlQueue):
     """
@@ -184,6 +198,9 @@ class PatternPrioritizingUrlQueue(RandomizingUrlQueue):
         return len(self.urls) + len(self.priority_urls)
 
 
+queuetypes['pattern'] = PatternPrioritizingUrlQueue
+
+
 class Spider(object):
 
     """A simple web spider that doesn't yet do much beyond offer
@@ -195,16 +212,7 @@ class Spider(object):
         self.opts = opts
         self.base_url = url
         self.domain = urlparse.urlparse(url).netloc
-        if opts.pattern_traverse:
-            self.queue = PatternPrioritizingUrlQueue()
-        elif opts.hybrid_traverse:
-            self.queue = HybridTraverseQueue()
-        elif opts.depth_first:
-            self.queue = DepthFirstQueue()
-        elif opts.random_traverse:
-            self.queue = RandomizingUrlQueue()
-        else:
-            self.queue = FifoUrlQueue()
+        self.queue = queuetypes[opts.traversal]()
         self.queue.append(url)
         self.http = httplib2.Http(timeout=opts.timeout or None)
         self.fetchcount = 0
@@ -387,17 +395,13 @@ def main():
                       help="Regex for filenames to reject. May be given multiple times.")
     parser.add_option('-A', '--accept', action="append",
                       help="Regex for filenames to accept. May be given multiple times.")
-    parser.add_option('--depth-first', action="store_true", default=False,
-                      help="recur in depth-first order (deep links first)")
-    parser.add_option('--hybrid-traverse', action="store_true", default=False,
-                      help="recur alternating depth-first and breadth-first")
-    parser.add_option('--random-traverse', action="store_true", default=False,
-                      help="traverse urls in random order.")
-    parser.add_option('--pattern-traverse', action="store_true", default=False,
-                      help="traverse new-looking url patterns first.")
 
-    # parser.add_option('--breadth-first', action="store_true", default=False,
-    #                   help="recur in breadth-first order (shallow links first)")
+    parser.add_option('-t', '--traversal', action="store",
+                      default="breadth-first",
+                      choices=sorted(queuetypes.keys()),
+                      help="Recursive traversal strategy. Choices are: %s"
+                      % ', '.join(sorted(queuetypes.keys())))
+
     parser.add_option("-H", "--span-hosts", action="store_true", default=False,
                       help="go to foreign hosts when recursive.")
     parser.add_option("-w", "--wait", default=None, type=float,
