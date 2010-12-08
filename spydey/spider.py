@@ -423,8 +423,18 @@ def main():
     parser.add_option("-P", "--profile", default=False, action="store_true",
                       help="Print the time to download each resource, and a summary of the %d slowest at the end." % PROFILE_REPORT_SIZE)
 
+    parser.add_option("-v", "--version", default=False, action="store_true",
+                      help="Print version information and exit.")
+
     (options, args) = parser.parse_args()
     loglevel = getattr(logging, options.loglevel.upper(), 'INFO')
+    if options.version:
+        # Hopefully this can't find a different installed version?
+        import pkg_resources
+        requirement = pkg_resources.Requirement.parse('spydey')
+        me = pkg_resources.working_set.find(requirement)
+        print me.project_name, me.version
+        return
     if len(args) != 1:
         parser.error("incorrect number of arguments")
     url = args.pop(0)
