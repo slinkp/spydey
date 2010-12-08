@@ -383,7 +383,7 @@ def main():
     Many command-line options were deliberately copied from wget.
     """
     from optparse import OptionParser
-    parser = OptionParser()
+    parser = OptionParser(usage="usage: %prog [options] URL")
     parser.add_option("-r", "--recursive", action="store_true", default=False,
                       help="recur into subdirectories")
     parser.add_option('-p', '--page-requisites', action="store_true",
@@ -425,6 +425,8 @@ def main():
 
     (options, args) = parser.parse_args()
     loglevel = getattr(logging, options.loglevel.upper(), 'INFO')
+    if len(args) != 1:
+        parser.error("incorrect number of arguments")
     url = args.pop(0)
     spider = Spider(url, options)
     if options.transient_log and fab:
