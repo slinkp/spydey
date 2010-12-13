@@ -5,12 +5,16 @@ Home page is at http://github.com/slinkp/spydey.
 It doesn't do much except follow links and report status.  I mostly
 use it for quick and dirty smoke testing and link checking.
 
-The only unusual feature is the ``--traversal=pattern`` option, which does
-recursive traversal in an unusual order: It tries to recognize
+The only unusual feature is the ``--traversal=pattern`` option, which
+does recursive traversal in an unusual order: It tries to recognize
 patterns in URLs, and will follow URLs of novel patterns before those
-with patterns it has seen before.  If you use this for smoke-testing a
-typical modern web app, it will very quickly hit all your
-views/controllers at least once... usually.
+with patterns it has seen before.  When there are no novel patterns to
+follow, it follows random links to URLs of known patterns. If you use
+this for smoke-testing a typical modern web app that uses maps URL
+patterns to views/controllers, this will very quickly hit all your
+views/controllers at least once... usually.  But it's not very
+interesting when pointed at a website that has arbitrarily deep trees
+(static files, VCS repositories, and the like).
 
 Also, it's designed so that adding a new recursion strategy is
 trivial. Spydey was originally written for the purpose of
@@ -57,5 +61,5 @@ wget. Use ``--help`` to see what they are, currently::
                         timeout.
   -P, --profile         Print the time to download each resource, and a
                         summary of the 20 slowest at the end.
-
+  -v, --version         Print version information and exit.
 
