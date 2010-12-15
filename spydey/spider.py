@@ -235,7 +235,7 @@ class Spider(object):
         """
         if self.opts.max_requests and self.fetchcount >= self.opts.max_requests:
             logger.info("Stopping after %d requests." % self.fetchcount)
-            return ({}, '', 0.0)
+            raise StopIteration()
         if self.opts.profile:
             start = time.time()
         (response, content) = self.http.request(url)
@@ -283,6 +283,8 @@ class Spider(object):
                 # httplib2 bug: socket is None, means no connection.
                 logger.error("Failure connecting to %s" % url)
                 continue
+            except StopIteration:
+                break
 
             # Might be following a redirect. Need to fix our idea of
             # URL since we use that to fix relative links...
@@ -298,7 +300,10 @@ class Spider(object):
                     logger.info("Not following redirect to disallowed link %s" 
                                 % newurl)
                     break
-                response, data, elapsed = self.fetch_one(newurl)
+                try:
+                    response, data, elapsed = self.fetch_one(newurl)
+                except StopIteration:
+                    break
                 url = newurl
 
             if self.opts.recursive:
