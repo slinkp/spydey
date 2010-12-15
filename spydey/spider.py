@@ -88,7 +88,7 @@ class RandomizingUrlQueue(FifoUrlQueue):
 
     def pop(self):
         i = random.randint(0, len(self.urls) -1)
-        logger.warn('Randomly popping %d of %d' % (i, len(self.urls)))
+        logger.info('Randomly popping %d of %d' % (i, len(self.urls)))
         # This is O(N), a dict keyed by ints might be a better storage.
         return self.urls.pop(i)
 
@@ -215,6 +215,8 @@ class Spider(object):
         self.queue = queuetypes[opts.traversal]()
         self.queue.append(url)
         self.http = httplib2.Http(timeout=opts.timeout or None)
+        # We do our own redirect handling.
+        self.http.follow_redirects = False
         self.fetchcount = 0
         self.reject = [(s, re.compile(s)) for s in (self.opts.reject or [])]
         self.accept = [(s, re.compile(s)) for s in (self.opts.accept or [])]
@@ -231,6 +233,9 @@ class Spider(object):
     def fetch_one(self, url):
         """Fetch a single URL.
         """
+        if self.opts.max_requests and self.fetchcount >= self.opts.max_requests:
+            logger.info("Stopping after %d requests." % self.fetchcount)
+            return ({}, '', 0.0)
         if self.opts.profile:
             start = time.time()
         (response, content) = self.http.request(url)
@@ -243,6 +248,7 @@ class Spider(object):
             logger.debug('fetched %r' % url)
             elapsed = None
         self.fetchcount += 1
+        self.handle_result(url, response, content, elapsed)
         return (response, content, elapsed)
 
     def handle_result(self, url, response, data, elapsed):
@@ -252,8 +258,6 @@ class Spider(object):
             status = colorizer.green(status)
             level = logging.INFO
         elif int(status) < 400:
-            # Looks like httplib2 hides redirects from us,
-            # as it automatically follows them. Hmm.
             status = colorizer.cyan(status)
             level = logging.INFO
         elif int(status) == 404:
@@ -276,18 +280,27 @@ class Spider(object):
             try:
                 response, data, elapsed = self.fetch_one(url)
             except AttributeError:
-                # httplib bug: socket is None, means no connection.
+                # httplib2 bug: socket is None, means no connection.
                 logger.error("Failure connecting to %s" % url)
                 continue
-            # Might have followed a redirect. Need to fix our idea of
+
+            # Might be following a redirect. Need to fix our idea of
             # URL since we use that to fix relative links...
-            if response.has_key('content-location'):
-                logger.debug('redirected from %r to %r' % (url, response['content-location']))
-                url = response['content-location']
-            self.handle_result(url, response, data, elapsed)
-            if self.opts.max_requests and self.fetchcount >= self.opts.max_requests:
-                logger.info("Stopping after %d requests." % self.fetchcount)
-                break
+            redirect_count = 0
+            while response.has_key('location') and (300 <= response.status < 400):
+                if redirect_count >= self.opts.max_redirect:
+                    logger.info("Stopping redirects after %d" % redirect_count)
+                    break
+                redirect_count += 1
+                newurl = response['location']
+                logger.debug('redirected from %r to %r' % (url, newurl))
+                if not self.allow_link(newurl):
+                    logger.info("Not following redirect to disallowed link %s" 
+                                % newurl)
+                    break
+                response, data, elapsed = self.fetch_one(newurl)
+                url = newurl
+
             if self.opts.recursive:
                 urls = self.get_urls(url, response, data)
                 self.queue.extend(urls, referrer=url)
@@ -303,6 +316,26 @@ class Spider(object):
         if self.opts.profile:
             print "Slowest %d URLs:" % PROFILE_REPORT_SIZE
             pprint.pprint(self.slowest_urls)
+
+    def allow_link(self, link):
+        """Patterns to explicitly accept or reject.
+        """
+        if self.accept:
+            skip = True
+        else:
+            skip = False
+        for pattern, regex in self.accept:
+            if regex.search(link):
+                logger.debug("Allowing %r, matches accept pattern %r" % (link, pattern))
+                skip = False
+                break
+        for pattern, regex in self.reject:
+            if regex.search(link):
+                logger.debug("Skipping %r, matches reject pattern %r" % (link, pattern))
+                skip = True
+                break
+        return not skip
+
 
     def filter_links(self, links):
         # Assumes links are absolute, and are tuples as returned by iterlinks().
@@ -325,22 +358,7 @@ class Spider(object):
                     logger.debug("Skipping %r from foreign domain" % link)
                     continue
 
-            # Patterns to explicitly accept or reject.
-            if self.accept:
-                skip = True
-            else:
-                skip = False
-            for pattern, regex in self.accept:
-                if regex.search(link):
-                    logger.debug("Allowing %r, matches accept pattern %r" % (link, pattern))
-                    skip = False
-                    break
-            for pattern, regex in self.reject:
-                if regex.search(link):
-                    logger.debug("Skipping %r, matches reject pattern %r" % (link, pattern))
-                    skip = True
-                    break
-            if skip:
+            if not self.allow_link(link):
                 continue
 
             if el.tag == 'a':
@@ -366,7 +384,7 @@ class Spider(object):
 
     def get_urls(self, url, response, data):
         logger.debug("getting more urls from %s..." % url)
-        if is_html(response):
+        if data.strip() and is_html(response):
             tree = lxml.html.document_fromstring(data)
             tree.make_links_absolute(url, resolve_base_href=True)
             links = self.filter_links(tree.iterlinks())
@@ -392,9 +410,9 @@ def main():
     parser.add_option('--no-parent', action="store_true", default=False,
                       help="don't ascend to the parent directory.")
     parser.add_option('-R', '--reject', action="append",
-                      help="Regex for filenames to reject. May be given multiple times.")
+                      help="Regex for filenames to reject. May be given multiple times. Note that this doesn't currently apply to redirects.")
     parser.add_option('-A', '--accept', action="append",
-                      help="Regex for filenames to accept. May be given multiple times.")
+                      help="Regex for filenames to accept. May be given multiple times.  Note that redirects are currently always accepted.")
 
     parser.add_option('-t', '--traversal', action="store",
                       default="breadth-first",
@@ -414,6 +432,8 @@ def main():
     parser.add_option("--transient-log", default=False, action="store_true",
                       help="Use Fabulous transient logging config.")
 
+    parser.add_option("--max-redirect", default=20, type=int,
+                      help="Maximum number of redirections to follow for a resource.")
     parser.add_option("--max-requests", default=0, type=int,
                       help="Maximum number of requests to make before exiting.")
 
