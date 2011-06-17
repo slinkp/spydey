@@ -14,7 +14,7 @@ def get_usage():
     usage = parser.format_help()
     # Add some indentation for using as ReStructured Text code block.
     usage = usage.replace('\n', '\n ')
-    usage = '\nUsage\n=======\n\n.. code-block::\n\n ' + usage
+    usage = '\nUsage\n=======\n\n::\n\n ' + usage
     return usage
 
 here = os.path.dirname(__file__)
