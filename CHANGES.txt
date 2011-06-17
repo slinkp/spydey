@@ -1,0 +1,17 @@
+
+Changelog
+=========
+
+0.4
+---
+
+* Add ``--stop-on-error`` option
+* Add ``--max-requests=-1`` to mean stop after all patterns are seen (when used with --traversal=pattern)
+* Add usage text automatically to pkg info
+
+
+0.3
+---
+
+* Better redirect handling: obeys -A, -R, --max-redirect, and --max-requests options
+* Minor bugfixes and refactoring
