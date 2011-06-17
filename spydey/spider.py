@@ -48,10 +48,11 @@ class FifoUrlQueue(object):
     # This could subclass list, but I want to limit the API to a
     # subset of list's API.
 
-    def __init__(self):
+    def __init__(self, opts):
         self.urls = collections.deque()
         self.known_urls = set()
         self.referrers = {}  # first referrer only.
+        self.opts = opts
 
     def __len__(self):
         return len(self.urls)
@@ -81,10 +82,11 @@ class RandomizingUrlQueue(FifoUrlQueue):
     the URL space is dominated by a few similar patterns, so we have a
     high likelihood of spending a lot of time on similar leaf nodes.
     """
-    def __init__(self):
+    def __init__(self, opts):
         self.urls = []
         self.known_urls = set()
         self.referrers = {}
+        self.opts = opts
 
     def pop(self):
         i = random.randint(0, len(self.urls) -1)
@@ -122,8 +124,8 @@ class HybridTraverseQueue(DepthFirstQueue):
     Alternate between depth-first and breadth-first traversal
     behavior.
     """
-    def __init__(self):
-        super(HybridTraverseQueue, self).__init__()
+    def __init__(self, opts):
+        super(HybridTraverseQueue, self).__init__(opts)
         self.next = self.urls.pop
 
     def pop(self):
@@ -152,11 +154,12 @@ class PatternPrioritizingUrlQueue(RandomizingUrlQueue):
     behavior, and pick a random URL from the remaining low-priority
     URLs.
     """
-    def __init__(self):
-        super(PatternPrioritizingUrlQueue, self).__init__()
+    def __init__(self, opts):
+        super(PatternPrioritizingUrlQueue, self).__init__(opts)
         self.priority_urls = collections.deque()
         self.known_patterns = {}
         self.referrers = {}
+        self.popped_some = False
 
     def make_pattern(self, s):
         path = urlparse.urlparse(s).path.strip('/')
@@ -191,7 +194,11 @@ class PatternPrioritizingUrlQueue(RandomizingUrlQueue):
     def pop(self):
         logger.debug(colorizer.green('LENGTH: known URLs: %d; new pattern queue: %d; old pattern queue: %d' % (len(self.known_urls), len(self.priority_urls), len(self.urls))))
         if self.priority_urls:
+            self.popped_some = True
             return self.priority_urls.pop()
+        if self.opts.max_requests == -1 and self.popped_some:
+            logger.info("Stopping iteration because we're out of new patterns")
+            raise StopIteration()
         return RandomizingUrlQueue.pop(self)
 
     def __len__(self):
@@ -212,7 +219,7 @@ class Spider(object):
         self.opts = opts
         self.base_url = url
         self.domain = urlparse.urlparse(url).netloc
-        self.queue = queuetypes[opts.traversal]()
+        self.queue = queuetypes[opts.traversal](opts)
         self.queue.append(url)
         self.http = httplib2.Http(timeout=opts.timeout or None)
         # We do our own redirect handling.
@@ -233,7 +240,7 @@ class Spider(object):
     def fetch_one(self, url):
         """Fetch a single URL.
         """
-        if self.opts.max_requests and self.fetchcount >= self.opts.max_requests:
+        if self.opts.max_requests > 0 and self.fetchcount >= self.opts.max_requests:
             logger.info("Stopping after %d requests." % self.fetchcount)
             raise StopIteration()
         if self.opts.profile:
@@ -276,13 +283,14 @@ class Spider(object):
 
     def crawl(self):
         while self.queue:
-            url = self.queue.pop()
             try:
-                response, data, elapsed = self.fetch_one(url)
-            except AttributeError:
-                # httplib2 bug: socket is None, means no connection.
-                logger.error("Failure connecting to %s" % url)
-                continue
+                url = self.queue.pop()
+                try:
+                    response, data, elapsed = self.fetch_one(url)
+                except AttributeError:
+                    # httplib2 bug: socket is None, means no connection.
+                    logger.error("Failure connecting to %s" % url)
+                    continue
             except StopIteration:
                 break
 
@@ -305,6 +313,10 @@ class Spider(object):
                 except StopIteration:
                     break
                 url = newurl
+
+            if self.opts.stop_on_error and response.status >= 400:
+                logger.warn("Bailing out on first HTTP error")
+                break
 
             if self.opts.recursive:
                 urls = self.get_urls(url, response, data)
@@ -401,38 +413,39 @@ class Spider(object):
 def is_html(response):
     return response.get('content-type', '').lower().startswith('text/html')
 
-def main():
-    """
-    Many command-line options were deliberately copied from wget.
-    """
+def get_optparser(argv=None):
+    if argv is None:
+        import sys
+        argv = sys.argv[1:]
     from optparse import OptionParser
     parser = OptionParser(usage="usage: %prog [options] URL")
     parser.add_option("-r", "--recursive", action="store_true", default=False,
-                      help="recur into subdirectories")
+                      help="Recur into subdirectories")
     parser.add_option('-p', '--page-requisites', action="store_true",
                       default=False,
-                      help="get all images, etc. needed to display HTML page.")
+                      help="Get all images, etc. needed to display HTML page.")
     parser.add_option('--no-parent', action="store_true", default=False,
-                      help="don't ascend to the parent directory.")
+                      help="Don't ascend to the parent directory.")
     parser.add_option('-R', '--reject', action="append",
-                      help="Regex for filenames to reject. May be given multiple times. Note that this doesn't currently apply to redirects.")
+                      help="Regex for filenames to reject. May be given multiple times.")
     parser.add_option('-A', '--accept', action="append",
-                      help="Regex for filenames to accept. May be given multiple times.  Note that redirects are currently always accepted.")
+                      help="Regex for filenames to accept. May be given multiple times.")
 
-    parser.add_option('-t', '--traversal', action="store",
+    parser.add_option('-t', '--traversal', '--traverse', action="store",
                       default="breadth-first",
                       choices=sorted(queuetypes.keys()),
                       help="Recursive traversal strategy. Choices are: %s"
                       % ', '.join(sorted(queuetypes.keys())))
 
     parser.add_option("-H", "--span-hosts", action="store_true", default=False,
-                      help="go to foreign hosts when recursive.")
+                      help="Go to foreign hosts when recursive.")
     parser.add_option("-w", "--wait", default=None, type=float,
-                      help="wait SECONDS between retrievals.")
+                      help="Wait SECONDS between retrievals.")
     parser.add_option("--random-wait", default=None, type=float,
-                      help="wait from 0...2*WAIT secs between retrievals.")
+                      help="Wait from 0...2*WAIT secs between retrievals.")
     parser.add_option("--loglevel", default='INFO', help="Log level.")
-    parser.add_option("--log-referrer", action="store_true", default=False,
+    parser.add_option("--log-referrer", "--log-referer",
+                      action="store_true", default=False,
                       help="Log referrer URL for each request.")
     parser.add_option("--transient-log", default=False, action="store_true",
                       help="Use Fabulous transient logging config.")
@@ -440,8 +453,9 @@ def main():
     parser.add_option("--max-redirect", default=20, type=int,
                       help="Maximum number of redirections to follow for a resource.")
     parser.add_option("--max-requests", default=0, type=int,
-                      help="Maximum number of requests to make before exiting.")
-
+                      help="Maximum number of requests to make before exiting. (-1 used with --traversal=pattern means exit when out of new patterns)")
+    parser.add_option("--stop-on-error", default=False, action="store_true",
+                      help="Stop after the first HTTP error (response code 400 or greater).")
     parser.add_option("-T", "--timeout", default=30, type=int,
                       help="Set the network timeout in seconds. 0 means no timeout.")
 
@@ -450,7 +464,13 @@ def main():
 
     parser.add_option("-v", "--version", default=False, action="store_true",
                       help="Print version information and exit.")
+    return parser
 
+def main():
+    """
+    Many command-line options were deliberately copied from wget.
+    """
+    parser = get_optparser()
     (options, args) = parser.parse_args()
     loglevel = getattr(logging, options.loglevel.upper(), 'INFO')
     if options.version:

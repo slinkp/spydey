@@ -1,9 +1,26 @@
 from setuptools import setup, find_packages
 import sys, os
 
-version = '0.3'
+version = '0.4'
 
-README = open(os.path.join(os.path.dirname(__file__), 'README.txt')).read()
+
+def get_usage():
+    try:
+        from spydey.spider import get_optparser
+    except ImportError:
+        return '\n'
+    parser = get_optparser()
+    parser.prog = 'spydey'
+    usage = parser.format_help()
+    # Add some indentation for using as ReStructured Text code block.
+    usage = usage.replace('\n', '\n ')
+    usage = '\nUsage\n=======\n\n.. code-block::\n\n ' + usage
+    return usage
+
+here = os.path.dirname(__file__)
+README = open(os.path.join(here, 'README.txt')).read()
+README += get_usage()
+README += open(os.path.join(here, 'CHANGES.txt')).read()
 
 setup(name='spydey',
       version=version,
