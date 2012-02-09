@@ -330,9 +330,11 @@ class Spider(object):
             patterns = [(v, k) for (k, v) in self.queue.known_patterns.items()]
             patterns = sorted(patterns)
             pprint.pprint([(k, v) for (v, k) in patterns])
+            print
         if self.opts.profile:
             print "Slowest %d URLs:" % PROFILE_REPORT_SIZE
             pprint.pprint(self.slowest_urls)
+            print
 
     def allow_link(self, link):
         """Patterns to explicitly accept or reject.
