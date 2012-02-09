@@ -326,13 +326,13 @@ class Spider(object):
                 #        url, pprint.pformat(urls, indent=2)))
                 self.sleep()
         if isinstance(self.queue, PatternPrioritizingUrlQueue) and self.opts.stats:
-            print "Pattern count summary:"
+            print "\nPattern count summary:"
             patterns = [(v, k) for (k, v) in self.queue.known_patterns.items()]
             patterns = sorted(patterns)
             pprint.pprint([(k, v) for (v, k) in patterns])
             print
         if self.opts.profile:
-            print "Slowest %d URLs:" % PROFILE_REPORT_SIZE
+            print "\nSlowest %d URLs:" % PROFILE_REPORT_SIZE
             pprint.pprint(self.slowest_urls)
             print
 
