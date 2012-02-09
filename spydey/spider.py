@@ -337,6 +337,13 @@ class Spider(object):
     def allow_link(self, link):
         """Patterns to explicitly accept or reject.
         """
+        # Check base URL if we're not spanning across hosts.
+        if not self.opts.span_hosts:
+            parsed_link = urlparse.urlsplit(link, allow_fragments=False)
+            if parsed_link.netloc != self.domain:
+                logger.debug("Skipping %r from foreign domain" % link)
+                return False
+
         if self.accept:
             skip = True
         else:
@@ -368,12 +375,6 @@ class Spider(object):
             # We could stand to do some other normalization here, eg.
             # strip trailing slashes from the path - but that breaks
             # referrer logging on a site that redirects 'foo' to 'foo/'.
-
-            # Check base URL if we're not spanning across hosts.
-            if not self.opts.span_hosts:
-                if netloc != self.domain:
-                    logger.debug("Skipping %r from foreign domain" % link)
-                    continue
 
             if not self.allow_link(link):
                 continue
