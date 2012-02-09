@@ -325,7 +325,7 @@ class Spider(object):
                 #logger.debug("Adding new URLs from %r:\n%s" % (
                 #        url, pprint.pformat(urls, indent=2)))
                 self.sleep()
-        if isinstance(self.queue, PatternPrioritizingUrlQueue):
+        if isinstance(self.queue, PatternPrioritizingUrlQueue) and self.opts.stats:
             print "Pattern count summary:"
             patterns = [(v, k) for (k, v) in self.queue.known_patterns.items()]
             patterns = sorted(patterns)
@@ -462,6 +462,9 @@ def get_optparser(argv=None):
 
     parser.add_option("-P", "--profile", default=False, action="store_true",
                       help="Print the time to download each resource, and a summary of the %d slowest at the end." % PROFILE_REPORT_SIZE)
+
+    parser.add_option("--stats", default=False, action="store_true",
+                      help="Print a summary of traversal patterns, if --traversal=pattern")
 
     parser.add_option("-v", "--version", default=False, action="store_true",
                       help="Print version information and exit.")

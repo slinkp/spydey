@@ -2,6 +2,12 @@
 Changelog
 =========
 
+0.5
+---
+
+* Remove useless pattern stats unless --stats is given
+* Fix to prevent spanning hosts when following redirects, unless -H is on.
+
 0.4
 ---
 
