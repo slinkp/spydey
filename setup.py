@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from distutils.core import setup
 import sys, os
 
 version = '0.6'
@@ -38,7 +38,6 @@ setup(name='spydey',
       author_email='slinkp@gmail.com',
       url='http://github.com/slinkp/spydey',
       license='MIT',
-      packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
       include_package_data=True,
       zip_safe=False,
       install_requires=[
