@@ -32,9 +32,10 @@ else:
             return lambda s: s
     colorizer = _noop_colorizer()
 
-PROFILE_REPORT_SIZE=20
+PROFILE_REPORT_SIZE = 20
 
 queuetypes = {}
+
 
 class FifoUrlQueue(object):
     """
@@ -72,7 +73,9 @@ class FifoUrlQueue(object):
     def pop(self):
         return self.urls.popleft()
 
+
 queuetypes['breadth-first'] = FifoUrlQueue
+
 
 class RandomizingUrlQueue(FifoUrlQueue):
 
@@ -82,6 +85,7 @@ class RandomizingUrlQueue(FifoUrlQueue):
     the URL space is dominated by a few similar patterns, so we have a
     high likelihood of spending a lot of time on similar leaf nodes.
     """
+
     def __init__(self, opts):
         self.urls = []
         self.known_urls = set()
@@ -89,12 +93,14 @@ class RandomizingUrlQueue(FifoUrlQueue):
         self.opts = opts
 
     def pop(self):
-        i = random.randint(0, len(self.urls) -1)
+        i = random.randint(0, len(self.urls) - 1)
         logger.info('Randomly popping %d of %d' % (i, len(self.urls)))
         # This is O(N), a dict keyed by ints might be a better storage.
         return self.urls.pop(i)
 
+
 queuetypes['random'] = RandomizingUrlQueue
+
 
 class DepthFirstQueue(FifoUrlQueue):
 
@@ -117,13 +123,16 @@ class DepthFirstQueue(FifoUrlQueue):
     def pop(self):
         return self.urls.pop()
 
+
 queuetypes['depth-first'] = DepthFirstQueue
+
 
 class HybridTraverseQueue(DepthFirstQueue):
     """
     Alternate between depth-first and breadth-first traversal
     behavior.
     """
+
     def __init__(self, opts):
         super(HybridTraverseQueue, self).__init__(opts)
         self.next = self.urls.pop
@@ -138,7 +147,9 @@ class HybridTraverseQueue(DepthFirstQueue):
         popped = next(self)
         return popped
 
+
 queuetypes['hybrid'] = HybridTraverseQueue
+
 
 class PatternPrioritizingUrlQueue(RandomizingUrlQueue):
     """
@@ -154,6 +165,7 @@ class PatternPrioritizingUrlQueue(RandomizingUrlQueue):
     behavior, and pick a random URL from the remaining low-priority
     URLs.
     """
+
     def __init__(self, opts):
         super(PatternPrioritizingUrlQueue, self).__init__(opts)
         self.priority_urls = collections.deque()
@@ -192,7 +204,8 @@ class PatternPrioritizingUrlQueue(RandomizingUrlQueue):
             self.append(url, referrer)
 
     def pop(self):
-        logger.debug(colorizer.green('LENGTH: known URLs: %d; new pattern queue: %d; old pattern queue: %d' % (len(self.known_urls), len(self.priority_urls), len(self.urls))))
+        logger.debug(colorizer.green('LENGTH: known URLs: %d; new pattern queue: %d; old pattern queue: %d' % (
+            len(self.known_urls), len(self.priority_urls), len(self.urls))))
         if self.priority_urls:
             self.popped_some = True
             return self.priority_urls.pop()
@@ -305,7 +318,7 @@ class Spider(object):
                 newurl = response['location']
                 logger.debug('redirected from %r to %r' % (url, newurl))
                 if not self.allow_link(newurl):
-                    logger.info("Not following redirect to disallowed link %s" 
+                    logger.info("Not following redirect to disallowed link %s"
                                 % newurl)
                     break
                 try:
@@ -322,12 +335,13 @@ class Spider(object):
                 urls = self.get_urls(url, response, data)
                 self.queue.extend(urls, referrer=url)
                 # fabulous doesn't deal well w/ this:
-                #logger.debug("Adding new URLs from %r:\n%s" % (
+                # logger.debug("Adding new URLs from %r:\n%s" % (
                 #        url, pprint.pformat(urls, indent=2)))
                 self.sleep()
         if isinstance(self.queue, PatternPrioritizingUrlQueue) and self.opts.stats:
             print("\nPattern count summary:")
-            patterns = [(v, k) for (k, v) in list(self.queue.known_patterns.items())]
+            patterns = [(v, k)
+                        for (k, v) in list(self.queue.known_patterns.items())]
             patterns = sorted(patterns)
             pprint.pprint([(k, v) for (v, k) in patterns])
             print()
@@ -352,16 +366,17 @@ class Spider(object):
             skip = False
         for pattern, regex in self.accept:
             if regex.search(link):
-                logger.debug("Allowing %r, matches accept pattern %r" % (link, pattern))
+                logger.debug("Allowing %r, matches accept pattern %r" %
+                             (link, pattern))
                 skip = False
                 break
         for pattern, regex in self.reject:
             if regex.search(link):
-                logger.debug("Skipping %r, matches reject pattern %r" % (link, pattern))
+                logger.debug("Skipping %r, matches reject pattern %r" %
+                             (link, pattern))
                 skip = True
                 break
         return not skip
-
 
     def filter_links(self, links):
         # Assumes links are absolute, and are tuples as returned by iterlinks().
@@ -372,7 +387,8 @@ class Spider(object):
             fragment = ''
             # For some reason, sometimes the fragment ends up in the path.
             path = path.split('#', 1)[0]
-            link = urllib.parse.urlunsplit((scheme, netloc, path, query, fragment))
+            link = urllib.parse.urlunsplit(
+                (scheme, netloc, path, query, fragment))
 
             # We could stand to do some other normalization here, eg.
             # strip trailing slashes from the path - but that breaks
@@ -396,7 +412,8 @@ class Spider(object):
                 continue
 
             elif self.opts.page_requisites:
-                logger.debug("getting page req. %r from (%r, %r)" % (link, el, attr))
+                logger.debug("getting page req. %r from (%r, %r)" %
+                             (link, el, attr))
                 yield link
             else:
                 logger.debug("Skipping %r from (%r, %r)" % (link, el, attr))
@@ -413,8 +430,10 @@ class Spider(object):
             # TODO: parse resource links from CSS.
             return []
 
+
 def is_html(response):
     return response.get('content-type', '').lower().startswith('text/html')
+
 
 def get_optparser(argv=None):
     if argv is None:
@@ -472,6 +491,7 @@ def get_optparser(argv=None):
                       help="Print version information and exit.")
     return parser
 
+
 def main():
     """
     Many command-line options were deliberately copied from wget.
@@ -496,6 +516,7 @@ def main():
     else:
         logging.basicConfig(level=loglevel)
     return spider.crawl()
+
 
 if __name__ == '__main__':
     import sys

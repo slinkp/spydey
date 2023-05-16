@@ -44,6 +44,7 @@ True
 
 """
 
+
 def flatten(*args):
     # flatten all args into a one-dimensional list (not tuple)
     result = []
@@ -56,6 +57,7 @@ def flatten(*args):
             result.append(arg)
     return result
 
+
 def replace_pattern_with_re_obj(re_obj, astring):
     if not isinstance(astring, str):
         return astring
@@ -67,6 +69,7 @@ def replace_pattern_with_re_obj(re_obj, astring):
     if output:
         output.pop()
     return output
+
 
 def patternize(astring):
     import re
