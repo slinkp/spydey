@@ -8,14 +8,14 @@ import collections
 import httplib2
 import logging
 import lxml.html
-import patternize
+from . import patternize
 import posixpath
 import pprint
 import random
 import re
 import sys
 import time
-import urlparse
+import urllib.parse
 
 logger = logging.getLogger('spydey')
 try:
@@ -129,13 +129,13 @@ class HybridTraverseQueue(DepthFirstQueue):
         self.next = self.urls.pop
 
     def pop(self):
-        if self.next == self.urls.pop:
+        if self.__next__ == self.urls.pop:
             self.next = self.urls.popleft
             logger.debug('next: left')
         else:
             self.next = self.urls.pop
             logger.debug('next: right')
-        popped = self.next()
+        popped = next(self)
         return popped
 
 queuetypes['hybrid'] = HybridTraverseQueue
@@ -162,7 +162,7 @@ class PatternPrioritizingUrlQueue(RandomizingUrlQueue):
         self.popped_some = False
 
     def make_pattern(self, s):
-        path = urlparse.urlparse(s).path.strip('/')
+        path = urllib.parse.urlparse(s).path.strip('/')
         if not path:
             return ''
         parts = posixpath.normpath(path).split('/')
@@ -218,7 +218,7 @@ class Spider(object):
     def __init__(self, url, opts):
         self.opts = opts
         self.base_url = url
-        self.domain = urlparse.urlparse(url).netloc
+        self.domain = urllib.parse.urlparse(url).netloc
         self.queue = queuetypes[opts.traversal](opts)
         self.queue.append(url)
         self.http = httplib2.Http(timeout=opts.timeout or None)
@@ -297,7 +297,7 @@ class Spider(object):
             # Might be following a redirect. Need to fix our idea of
             # URL since we use that to fix relative links...
             redirect_count = 0
-            while response.has_key('location') and (300 <= response.status < 400):
+            while 'location' in response and (300 <= response.status < 400):
                 if redirect_count >= self.opts.max_redirect:
                     logger.info("Stopping redirects after %d" % redirect_count)
                     break
@@ -326,22 +326,22 @@ class Spider(object):
                 #        url, pprint.pformat(urls, indent=2)))
                 self.sleep()
         if isinstance(self.queue, PatternPrioritizingUrlQueue) and self.opts.stats:
-            print "\nPattern count summary:"
-            patterns = [(v, k) for (k, v) in self.queue.known_patterns.items()]
+            print("\nPattern count summary:")
+            patterns = [(v, k) for (k, v) in list(self.queue.known_patterns.items())]
             patterns = sorted(patterns)
             pprint.pprint([(k, v) for (v, k) in patterns])
-            print
+            print()
         if self.opts.profile:
-            print "\nSlowest %d URLs:" % PROFILE_REPORT_SIZE
+            print("\nSlowest %d URLs:" % PROFILE_REPORT_SIZE)
             pprint.pprint(self.slowest_urls)
-            print
+            print()
 
     def allow_link(self, link):
         """Patterns to explicitly accept or reject.
         """
         # Check base URL if we're not spanning across hosts.
         if not self.opts.span_hosts:
-            parsed_link = urlparse.urlsplit(link, allow_fragments=False)
+            parsed_link = urllib.parse.urlsplit(link, allow_fragments=False)
             if parsed_link.netloc != self.domain:
                 logger.debug("Skipping %r from foreign domain" % link)
                 return False
@@ -367,12 +367,12 @@ class Spider(object):
         # Assumes links are absolute, and are tuples as returned by iterlinks().
         for (el, attr, link, pos) in links:
             # Discard fragment name, eg http://foo/#bar -> http://foo/
-            (scheme, netloc, path, query, frament) = urlparse.urlsplit(
+            (scheme, netloc, path, query, frament) = urllib.parse.urlsplit(
                 link, allow_fragments=False)
             fragment = ''
             # For some reason, sometimes the fragment ends up in the path.
             path = path.split('#', 1)[0]
-            link = urlparse.urlunsplit((scheme, netloc, path, query, fragment))
+            link = urllib.parse.urlunsplit((scheme, netloc, path, query, fragment))
 
             # We could stand to do some other normalization here, eg.
             # strip trailing slashes from the path - but that breaks
@@ -484,7 +484,7 @@ def main():
         import pkg_resources
         requirement = pkg_resources.Requirement.parse('spydey')
         me = pkg_resources.working_set.find(requirement)
-        print me.project_name, me.version
+        print(me.project_name, me.version)
         return
     if len(args) != 1:
         parser.error("incorrect number of arguments")
