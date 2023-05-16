@@ -173,9 +173,11 @@ class PatternPrioritizingUrlQueue():
     """
 
     def __init__(self, opts):
-        super(PatternPrioritizingUrlQueue, self).__init__(opts)
-        self.priority_urls = collections.deque()
-        self.known_patterns = {}
+        self.priority_urls = FifoUrlQueue(opts=opts)
+        self.urls = RandomizingUrlQueue(opts=opts)
+        self.opts = opts
+        self.known_urls = self.urls.known_urls = self.priority_urls.known_urls
+        self.known_patterns = collections.defaultdict(int)
         self.referrers = {}
         self.popped_some = False
 
@@ -190,20 +192,20 @@ class PatternPrioritizingUrlQueue():
     def append(self, url, referrer=None):
         if url in self.known_urls:
             return
-        self.known_urls.add(url)
+
         self.referrers[url] = referrer
         new_pattern = self.make_pattern(url)
         if new_pattern in self.known_patterns:
             # put it in the low priority pile.
             self.urls.append(url)
-            self.known_patterns[new_pattern] += 1
         else:
             logger.debug(colorizer.red('NEW PATTERN!') + new_pattern)
             self.priority_urls.append(url)
-            self.known_patterns[new_pattern] = 1
+        self.known_patterns[new_pattern] += 1
 
     def extend(self, urls, referrer=None):
         # We actually want to visit the shallowest new-patterned URLs first.
+        # XXX TODO does this work now that we re-did the implementation?
         urls = set(urls)
         urls = sorted(urls, key=lambda s: s.count('/'), reverse=True)
         for url in urls:
@@ -218,7 +220,7 @@ class PatternPrioritizingUrlQueue():
         if self.opts.max_requests == -1 and self.popped_some:
             logger.info("Stopping iteration because we're out of new patterns")
             raise StopIteration()
-        return RandomizingUrlQueue.pop(self)
+        return self.urls.pop()
 
     def __len__(self):
         return len(self.urls) + len(self.priority_urls)
