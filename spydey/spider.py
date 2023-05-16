@@ -135,17 +135,16 @@ class HybridTraverseQueue(DepthFirstQueue):
 
     def __init__(self, opts):
         super(HybridTraverseQueue, self).__init__(opts)
-        self.next = self.urls.pop
+        self._next_method = self.urls.pop
 
     def pop(self):
-        if self.__next__ == self.urls.pop:
-            self.next = self.urls.popleft
+        if self._next_method == self.urls.pop:
+            self._next_method = self.urls.popleft
             logger.debug('next: left')
         else:
-            self.next = self.urls.pop
+            self._next_method = self.urls.pop
             logger.debug('next: right')
-        popped = next(self)
-        return popped
+        return self._next_method()
 
 
 queuetypes['hybrid'] = HybridTraverseQueue
