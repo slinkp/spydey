@@ -4,6 +4,7 @@ A simple web spider with several recursion strategies.
 Many command options taken from wget;
 some ideas from http://ericholscher.com/projects/django-test-utils/
 """
+import abc
 import collections
 import httplib2
 import logging
@@ -16,6 +17,7 @@ import re
 import sys
 import time
 import urllib.parse
+
 
 logger = logging.getLogger('spydey')
 try:
@@ -37,26 +39,20 @@ PROFILE_REPORT_SIZE = 20
 queuetypes = {}
 
 
-class FifoUrlQueue(object):
+class BaseUrlQueue(abc.ABC):
     """
     A URL queue is responsible for storing a queue of unique URLs,
     removing duplicates, and deciding (via the pop() method) which
     URL to visit next.
 
-    This base class pops URLs in FIFO order, so it does a
-    breadth-first traversal of the site.
+    There is no default `pop()`, it's abstract and must be defined in subclasses.
     """
-    # This could subclass list, but I want to limit the API to a
-    # subset of list's API.
 
     def __init__(self, opts):
         self.urls = collections.deque()
         self.known_urls = set()
         self.referrers = {}  # first referrer only.
         self.opts = opts
-
-    def __len__(self):
-        return len(self.urls)
 
     def append(self, url, referrer=None):
         if url not in self.known_urls:
@@ -70,6 +66,22 @@ class FifoUrlQueue(object):
         for url in urls:
             self.append(url, referrer=referrer)
 
+    def __len__(self):
+        return len(self.urls)
+
+    @abc.abstractmethod
+    def pop(self):
+        pass
+
+
+class FifoUrlQueue(BaseUrlQueue):
+    """   
+    This base class pops URLs in FIFO order, so it does a
+    breadth-first traversal of the site.
+    """
+    # This could subclass list, but I want to limit the API to a
+    # subset of list's API.
+
     def pop(self):
         return self.urls.popleft()
 
@@ -77,7 +89,7 @@ class FifoUrlQueue(object):
 queuetypes['breadth-first'] = FifoUrlQueue
 
 
-class RandomizingUrlQueue(FifoUrlQueue):
+class RandomizingUrlQueue(BaseUrlQueue):
 
     """A URL Queue that pops URLs off the queue in random order.
 
@@ -87,23 +99,18 @@ class RandomizingUrlQueue(FifoUrlQueue):
     """
 
     def __init__(self, opts):
+        super().__init__(opts=opts)
         self.urls = []
-        self.known_urls = set()
-        self.referrers = {}
-        self.opts = opts
 
     def pop(self):
-        i = random.randint(0, len(self.urls) - 1)
-        logger.info('Randomly popping %d of %d' % (i, len(self.urls)))
-        # This is O(N), a dict keyed by ints might be a better storage.
-        return self.urls.pop(i)
+        random.shuffle(self.urls)
+        return self.urls.pop()
 
 
 queuetypes['random'] = RandomizingUrlQueue
 
 
-class DepthFirstQueue(FifoUrlQueue):
-
+class DepthFirstQueue(BaseUrlQueue):
     """
     Depth-first traversal. Since we don't have a site map to follow,
     we're not walking a tree, but rather a (probably cyclic) directed
@@ -118,7 +125,7 @@ class DepthFirstQueue(FifoUrlQueue):
 
     def extend(self, urls, referrer=None):
         urls.sort(key=lambda s: s.count('/'))
-        return FifoUrlQueue.extend(self, urls, referrer)
+        return super().extend(urls, referrer=referrer)
 
     def pop(self):
         return self.urls.pop()
@@ -127,14 +134,14 @@ class DepthFirstQueue(FifoUrlQueue):
 queuetypes['depth-first'] = DepthFirstQueue
 
 
-class HybridTraverseQueue(DepthFirstQueue):
+class HybridTraverseQueue(BaseUrlQueue):
     """
     Alternate between depth-first and breadth-first traversal
     behavior.
     """
 
     def __init__(self, opts):
-        super(HybridTraverseQueue, self).__init__(opts)
+        super().__init__(opts)
         self._next_method = self.urls.pop
 
     def pop(self):
@@ -150,7 +157,7 @@ class HybridTraverseQueue(DepthFirstQueue):
 queuetypes['hybrid'] = HybridTraverseQueue
 
 
-class PatternPrioritizingUrlQueue(RandomizingUrlQueue):
+class PatternPrioritizingUrlQueue():
     """
     An attempt at discovering different sections of a website quickly.
     We classify links with a primitive pattern-recognition algorithm, and
