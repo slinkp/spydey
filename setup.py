@@ -18,7 +18,7 @@ def get_usage():
     return usage
 
 here = os.path.dirname(__file__)
-README = open(os.path.join(here, 'README.txt')).read()
+README = open(os.path.join(here, 'README.rst')).read()
 README += get_usage()
 README += open(os.path.join(here, 'CHANGES.txt')).read()
 
