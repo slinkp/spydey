@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "spydey"
+dynamic = [ "version" ]
+description = "A web spider, useful for link checking, with several recursion strategies."
+authors = [
+    {name = "Paul Winkler", email = "slinkp@gmail.com"},
+]
+dependencies = [
+  "setuptools>=79.0.0",
+  "lxml>=5",
+  "httplib2>=0.20.1",
+]
+
+requires-python = ">=3.9"
+
+readme = "README.rst"
+
+license = {text = "MIT"}
+
+keywords = [ ]
+classifiers = [
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python",
+  "Topic :: Internet :: WWW/HTTP",
+  "Topic :: Internet :: WWW/HTTP :: Site Management :: Link Checking",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "spydey.__version__"}
+
+[tool.pdm]
+distribution = true
+
+[project.scripts]
+spydey = "spydey.spider:main"
+
+[project.urls]
+Homepage = "https://github.com/slinkp/spydey"
+Repository = "https://github.com/slinkp/spydey"
+Changelog = "https://github.com/slinkp/spydey/blob/main/CHANGES.txt"
+
+[project.optional-dependencies]
+
+build = [
+  "build>=1.2",
+]
+
+cli = [
+  "fabulous>=0.4.0",
+]

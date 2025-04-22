@@ -7,3 +7,6 @@ build/
 .direnv
 *bak
 *eggs
+*pdm-python
+pdm.lock
+
