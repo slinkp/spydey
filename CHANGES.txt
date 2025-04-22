@@ -2,6 +2,11 @@
 Changelog
 =========
 
+0.6.1
+-----
+
+Just minor README updates.
+
 0.6.0
 -----
 
