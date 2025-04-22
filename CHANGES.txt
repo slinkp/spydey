@@ -2,11 +2,12 @@
 Changelog
 =========
 
-0.6
----
+0.6.0
+-----
 
-* Require Python 3. Tested on 3.11.
+* Require Python 3. Tested on 3.11 and 3.12.
 * Changed from setuptools to distutils.core
+* Minor refactoring
 
 0.5
 ---

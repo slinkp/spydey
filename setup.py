@@ -1,7 +1,7 @@
 from distutils.core import setup
 import sys, os
 
-version = '0.6'
+version = '0.6.0'
 
 
 def get_usage():
