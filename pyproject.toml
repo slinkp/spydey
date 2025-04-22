@@ -49,6 +49,7 @@ Changelog = "https://github.com/slinkp/spydey/blob/main/CHANGES.txt"
 
 build = [
   "build>=1.2",
+  "docutils",
 ]
 
 cli = [

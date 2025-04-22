@@ -31,3 +31,21 @@ For lazy, zero-configuration smoke testing, I typically run it like::
 
 There are a number of other command-line options, many stolen from
 wget. Use ``--help`` to see what they are.
+
+
+Installation
+==============
+
+Any of the standard python install tools should work;
+eg ``pip install spydey`` will install the latest from pypi.
+
+Development
+============
+
+To build a new distribution:
+
+- Bump the version number in ``spydey/__init__.py``
+- Add an entry to the top of ``CHANGES.txt``
+- Run this command::
+
+    python3 -m build --sdist .
