@@ -46,6 +46,19 @@ To build a new distribution:
 
 - Bump the version number in ``spydey/__init__.py``
 - Add an entry to the top of ``CHANGES.txt``
-- Run this command::
 
-    python3 -m build --sdist .
+Make sure we have the latest tools::
+
+  python3 -m pip install --upgrade twine pip setuptools wheel``
+
+Build a distribution::
+
+  python3 -m build --sdist .
+
+Check the built distribution::
+
+  twine check dist/*
+
+Upload it::
+
+  twine upload dist/*
