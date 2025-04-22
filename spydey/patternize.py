@@ -73,7 +73,8 @@ def replace_pattern_with_re_obj(re_obj, astring):
 
 def patternize(astring):
     import re
-    patterns = (r'\d+', r'\s+', r'[-a-zA-Z_]+', r'\W+')
+
+    patterns = (r"\d+", r"\s+", r"[-a-zA-Z_]+", r"\W+")
     pat_to_re = dict(list(zip(patterns, [re.compile(r) for r in patterns])))
     re_to_pat = dict([(item[1], item[0]) for item in list(pat_to_re.items())])
 
@@ -84,9 +85,10 @@ def patternize(astring):
         output = flatten(substituted)
 
     pattern_list = [re_to_pat[obj] for obj in output if obj]
-    return ''.join(pattern_list)
+    return "".join(pattern_list)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import doctest
+
     print(doctest.testmod())

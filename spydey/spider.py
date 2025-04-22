@@ -4,6 +4,7 @@ A simple web spider with several recursion strategies.
 Many command options taken from wget;
 some ideas from http://ericholscher.com/projects/django-test-utils/
 """
+
 import abc
 import collections
 import httplib2
@@ -19,9 +20,10 @@ import time
 import urllib.parse
 
 
-logger = logging.getLogger('spydey')
+logger = logging.getLogger("spydey")
 try:
     import fabulous.color
+
     fab = True
 except ImportError:
     fab = False
@@ -29,9 +31,11 @@ except ImportError:
 if fab and sys.stderr.isatty():
     colorizer = fabulous.color
 else:
+
     class _noop_colorizer:
         def __getattr__(self, *name):
             return lambda s: s
+
     colorizer = _noop_colorizer()
 
 PROFILE_REPORT_SIZE = 20
@@ -75,10 +79,11 @@ class BaseUrlQueue(abc.ABC):
 
 
 class FifoUrlQueue(BaseUrlQueue):
-    """   
+    """
     This base class pops URLs in FIFO order, so it does a
     breadth-first traversal of the site.
     """
+
     # This could subclass list, but I want to limit the API to a
     # subset of list's API.
 
@@ -86,11 +91,10 @@ class FifoUrlQueue(BaseUrlQueue):
         return self.urls.popleft()
 
 
-queuetypes['breadth-first'] = FifoUrlQueue
+queuetypes["breadth-first"] = FifoUrlQueue
 
 
 class RandomizingUrlQueue(BaseUrlQueue):
-
     """A URL Queue that pops URLs off the queue in random order.
 
     This turns out to not feel very random in behavior, because often
@@ -107,7 +111,7 @@ class RandomizingUrlQueue(BaseUrlQueue):
         return self.urls.pop()
 
 
-queuetypes['random'] = RandomizingUrlQueue
+queuetypes["random"] = RandomizingUrlQueue
 
 
 class DepthFirstQueue(BaseUrlQueue):
@@ -124,14 +128,14 @@ class DepthFirstQueue(BaseUrlQueue):
     """
 
     def extend(self, urls, referrer=None):
-        urls.sort(key=lambda s: s.count('/'))
+        urls.sort(key=lambda s: s.count("/"))
         return super().extend(urls, referrer=referrer)
 
     def pop(self):
         return self.urls.pop()
 
 
-queuetypes['depth-first'] = DepthFirstQueue
+queuetypes["depth-first"] = DepthFirstQueue
 
 
 class HybridTraverseQueue(BaseUrlQueue):
@@ -147,17 +151,17 @@ class HybridTraverseQueue(BaseUrlQueue):
     def pop(self):
         if self._next_method == self.urls.pop:
             self._next_method = self.urls.popleft
-            logger.debug('next: left')
+            logger.debug("next: left")
         else:
             self._next_method = self.urls.pop
-            logger.debug('next: right')
+            logger.debug("next: right")
         return self._next_method()
 
 
-queuetypes['hybrid'] = HybridTraverseQueue
+queuetypes["hybrid"] = HybridTraverseQueue
 
 
-class PatternPrioritizingUrlQueue():
+class PatternPrioritizingUrlQueue:
     """
     An attempt at discovering different sections of a website quickly.
     We classify links with a primitive pattern-recognition algorithm, and
@@ -182,12 +186,12 @@ class PatternPrioritizingUrlQueue():
         self.popped_some = False
 
     def make_pattern(self, s):
-        path = urllib.parse.urlparse(s).path.strip('/')
+        path = urllib.parse.urlparse(s).path.strip("/")
         if not path:
-            return ''
-        parts = posixpath.normpath(path).split('/')
+            return ""
+        parts = posixpath.normpath(path).split("/")
         parts = parts[:1] + [patternize.patternize(p) for p in parts[1:]]
-        return '/'.join(parts)
+        return "/".join(parts)
 
     def append(self, url, referrer=None):
         if url in self.known_urls:
@@ -199,7 +203,7 @@ class PatternPrioritizingUrlQueue():
             # put it in the low priority pile.
             self.urls.append(url)
         else:
-            logger.debug(colorizer.red('NEW PATTERN!') + new_pattern)
+            logger.debug(colorizer.red("NEW PATTERN!") + new_pattern)
             self.priority_urls.append(url)
         self.known_patterns[new_pattern] += 1
 
@@ -207,13 +211,17 @@ class PatternPrioritizingUrlQueue():
         # We actually want to visit the shallowest new-patterned URLs first.
         # XXX TODO does this work now that we re-did the implementation?
         urls = set(urls)
-        urls = sorted(urls, key=lambda s: s.count('/'), reverse=True)
+        urls = sorted(urls, key=lambda s: s.count("/"), reverse=True)
         for url in urls:
             self.append(url, referrer)
 
     def pop(self):
-        logger.debug(colorizer.green('LENGTH: known URLs: %d; new pattern queue: %d; old pattern queue: %d' % (
-            len(self.known_urls), len(self.priority_urls), len(self.urls))))
+        logger.debug(
+            colorizer.green(
+                "LENGTH: known URLs: %d; new pattern queue: %d; old pattern queue: %d"
+                % (len(self.known_urls), len(self.priority_urls), len(self.urls))
+            )
+        )
         if self.priority_urls:
             self.popped_some = True
             return self.priority_urls.pop()
@@ -226,11 +234,10 @@ class PatternPrioritizingUrlQueue():
         return len(self.urls) + len(self.priority_urls)
 
 
-queuetypes['pattern'] = PatternPrioritizingUrlQueue
+queuetypes["pattern"] = PatternPrioritizingUrlQueue
 
 
 class Spider(object):
-
     """A simple web spider that doesn't yet do much beyond offer
     pluggable traversal strategies, and report HTTP status for each
     visited URL.
@@ -251,16 +258,14 @@ class Spider(object):
         self.slowest_urls = []
 
     def sleep(self):
-        """Maybe wait before doing next download.
-        """
+        """Maybe wait before doing next download."""
         if self.opts.wait is not None:
             time.sleep(self.opts.wait)
         elif self.opts.random_wait is not None:
             time.sleep(random.uniform(0, 2 * self.opts.random_wait))
 
     def fetch_one(self, url):
-        """Fetch a single URL.
-        """
+        """Fetch a single URL."""
         if self.opts.max_requests > 0 and self.fetchcount >= self.opts.max_requests:
             logger.info("Stopping after %d requests." % self.fetchcount)
             raise StopIteration()
@@ -273,7 +278,7 @@ class Spider(object):
             self.slowest_urls.sort(reverse=True)
             self.slowest_urls = self.slowest_urls[:PROFILE_REPORT_SIZE]
         else:
-            logger.debug('fetched %r' % url)
+            logger.debug("fetched %r" % url)
             elapsed = None
         self.fetchcount += 1
         self.handle_result(url, response, content, elapsed)
@@ -281,7 +286,7 @@ class Spider(object):
 
     def handle_result(self, url, response, data, elapsed):
         # TODO: options to store downloads, report different things, etc.
-        status = response['status']
+        status = response["status"]
         if int(status) < 300:
             status = colorizer.green(status)
             level = logging.INFO
@@ -295,11 +300,11 @@ class Spider(object):
             status = colorizer.red(status)
             level = logging.ERROR
         status = colorizer.bold(status)
-        msg = '%d. %s %s' % (self.fetchcount, status, colorizer.blue(url))
+        msg = "%d. %s %s" % (self.fetchcount, status, colorizer.blue(url))
         if self.opts.profile:
-            msg = '%s  (%0.3f secs)' % (msg, elapsed)
+            msg = "%s  (%0.3f secs)" % (msg, elapsed)
         if self.opts.log_referrer:
-            msg = '%s  (from %s)' % (msg, self.queue.referrers.get(url, None))
+            msg = "%s  (from %s)" % (msg, self.queue.referrers.get(url, None))
         logger.log(level, msg)
 
     def crawl(self):
@@ -318,16 +323,15 @@ class Spider(object):
             # Might be following a redirect. Need to fix our idea of
             # URL since we use that to fix relative links...
             redirect_count = 0
-            while 'location' in response and (300 <= response.status < 400):
+            while "location" in response and (300 <= response.status < 400):
                 if redirect_count >= self.opts.max_redirect:
                     logger.info("Stopping redirects after %d" % redirect_count)
                     break
                 redirect_count += 1
-                newurl = response['location']
-                logger.debug('redirected from %r to %r' % (url, newurl))
+                newurl = response["location"]
+                logger.debug("redirected from %r to %r" % (url, newurl))
                 if not self.allow_link(newurl):
-                    logger.info("Not following redirect to disallowed link %s"
-                                % newurl)
+                    logger.info("Not following redirect to disallowed link %s" % newurl)
                     break
                 try:
                     response, data, elapsed = self.fetch_one(newurl)
@@ -348,8 +352,7 @@ class Spider(object):
                 self.sleep()
         if isinstance(self.queue, PatternPrioritizingUrlQueue) and self.opts.stats:
             print("\nPattern count summary:")
-            patterns = [(v, k)
-                        for (k, v) in list(self.queue.known_patterns.items())]
+            patterns = [(v, k) for (k, v) in list(self.queue.known_patterns.items())]
             patterns = sorted(patterns)
             pprint.pprint([(k, v) for (v, k) in patterns])
             print()
@@ -359,8 +362,7 @@ class Spider(object):
             print()
 
     def allow_link(self, link):
-        """Patterns to explicitly accept or reject.
-        """
+        """Patterns to explicitly accept or reject."""
         # Check base URL if we're not spanning across hosts.
         if not self.opts.span_hosts:
             parsed_link = urllib.parse.urlsplit(link, allow_fragments=False)
@@ -374,29 +376,27 @@ class Spider(object):
             skip = False
         for pattern, regex in self.accept:
             if regex.search(link):
-                logger.debug("Allowing %r, matches accept pattern %r" %
-                             (link, pattern))
+                logger.debug("Allowing %r, matches accept pattern %r" % (link, pattern))
                 skip = False
                 break
         for pattern, regex in self.reject:
             if regex.search(link):
-                logger.debug("Skipping %r, matches reject pattern %r" %
-                             (link, pattern))
+                logger.debug("Skipping %r, matches reject pattern %r" % (link, pattern))
                 skip = True
                 break
         return not skip
 
     def filter_links(self, links):
         # Assumes links are absolute, and are tuples as returned by iterlinks().
-        for (el, attr, link, pos) in links:
+        for el, attr, link, pos in links:
             # Discard fragment name, eg http://foo/#bar -> http://foo/
             (scheme, netloc, path, query, frament) = urllib.parse.urlsplit(
-                link, allow_fragments=False)
-            fragment = ''
+                link, allow_fragments=False
+            )
+            fragment = ""
             # For some reason, sometimes the fragment ends up in the path.
-            path = path.split('#', 1)[0]
-            link = urllib.parse.urlunsplit(
-                (scheme, netloc, path, query, fragment))
+            path = path.split("#", 1)[0]
+            link = urllib.parse.urlunsplit((scheme, netloc, path, query, fragment))
 
             # We could stand to do some other normalization here, eg.
             # strip trailing slashes from the path - but that breaks
@@ -405,7 +405,7 @@ class Spider(object):
             if not self.allow_link(link):
                 continue
 
-            if el.tag == 'a':
+            if el.tag == "a":
                 if self.opts.no_parent:
                     # Only applies to pages, not js, stylesheets or
                     # other resources.
@@ -414,14 +414,13 @@ class Spider(object):
                         continue
                 yield link
 
-            elif el.tag == 'form' and attr == 'action':
+            elif el.tag == "form" and attr == "action":
                 # Unless we can guess how to fill out the form,
                 # following these would make no sense at all.
                 continue
 
             elif self.opts.page_requisites:
-                logger.debug("getting page req. %r from (%r, %r)" %
-                             (link, el, attr))
+                logger.debug("getting page req. %r from (%r, %r)" % (link, el, attr))
                 yield link
             else:
                 logger.debug("Skipping %r from (%r, %r)" % (link, el, attr))
@@ -440,63 +439,145 @@ class Spider(object):
 
 
 def is_html(response):
-    return response.get('content-type', '').lower().startswith('text/html')
+    return response.get("content-type", "").lower().startswith("text/html")
 
 
 def get_optparser(argv=None):
     if argv is None:
         import sys
+
         argv = sys.argv[1:]
     from optparse import OptionParser
+
     parser = OptionParser(usage="usage: %prog [options] URL")
-    parser.add_option("-r", "--recursive", action="store_true", default=False,
-                      help="Recur into subdirectories")
-    parser.add_option('-p', '--page-requisites', action="store_true",
-                      default=False,
-                      help="Get all images, etc. needed to display HTML page.")
-    parser.add_option('--no-parent', action="store_true", default=False,
-                      help="Don't ascend to the parent directory.")
-    parser.add_option('-R', '--reject', action="append",
-                      help="Regex for filenames to reject. May be given multiple times.")
-    parser.add_option('-A', '--accept', action="append",
-                      help="Regex for filenames to accept. May be given multiple times.")
+    parser.add_option(
+        "-r",
+        "--recursive",
+        action="store_true",
+        default=False,
+        help="Recur into subdirectories",
+    )
+    parser.add_option(
+        "-p",
+        "--page-requisites",
+        action="store_true",
+        default=False,
+        help="Get all images, etc. needed to display HTML page.",
+    )
+    parser.add_option(
+        "--no-parent",
+        action="store_true",
+        default=False,
+        help="Don't ascend to the parent directory.",
+    )
+    parser.add_option(
+        "-R",
+        "--reject",
+        action="append",
+        help="Regex for filenames to reject. May be given multiple times.",
+    )
+    parser.add_option(
+        "-A",
+        "--accept",
+        action="append",
+        help="Regex for filenames to accept. May be given multiple times.",
+    )
 
-    parser.add_option('-t', '--traversal', '--traverse', action="store",
-                      default="breadth-first",
-                      choices=sorted(queuetypes.keys()),
-                      help="Recursive traversal strategy. Choices are: %s"
-                      % ', '.join(sorted(queuetypes.keys())))
+    parser.add_option(
+        "-t",
+        "--traversal",
+        "--traverse",
+        action="store",
+        default="breadth-first",
+        choices=sorted(queuetypes.keys()),
+        help="Recursive traversal strategy. Choices are: %s"
+        % ", ".join(sorted(queuetypes.keys())),
+    )
 
-    parser.add_option("-H", "--span-hosts", action="store_true", default=False,
-                      help="Go to foreign hosts when recursive.")
-    parser.add_option("-w", "--wait", default=None, type=float,
-                      help="Wait SECONDS between retrievals.")
-    parser.add_option("--random-wait", default=None, type=float,
-                      help="Wait from 0...2*WAIT secs between retrievals.")
-    parser.add_option("--loglevel", default='INFO', help="Log level.")
-    parser.add_option("--log-referrer", "--log-referer",
-                      action="store_true", default=False,
-                      help="Log referrer URL for each request.")
-    parser.add_option("--transient-log", default=False, action="store_true",
-                      help="Use Fabulous transient logging config.")
+    parser.add_option(
+        "-H",
+        "--span-hosts",
+        action="store_true",
+        default=False,
+        help="Go to foreign hosts when recursive.",
+    )
+    parser.add_option(
+        "-w",
+        "--wait",
+        default=None,
+        type=float,
+        help="Wait SECONDS between retrievals.",
+    )
+    parser.add_option(
+        "--random-wait",
+        default=None,
+        type=float,
+        help="Wait from 0...2*WAIT secs between retrievals.",
+    )
+    parser.add_option("--loglevel", default="INFO", help="Log level.")
+    parser.add_option(
+        "--log-referrer",
+        "--log-referer",
+        action="store_true",
+        default=False,
+        help="Log referrer URL for each request.",
+    )
+    parser.add_option(
+        "--transient-log",
+        default=False,
+        action="store_true",
+        help="Use Fabulous transient logging config.",
+    )
 
-    parser.add_option("--max-redirect", default=20, type=int,
-                      help="Maximum number of redirections to follow for a resource.")
-    parser.add_option("--max-requests", default=0, type=int,
-                      help="Maximum number of requests to make before exiting. (-1 used with --traversal=pattern means exit when out of new patterns)")
-    parser.add_option("--stop-on-error", default=False, action="store_true",
-                      help="Stop after the first HTTP error (response code 400 or greater).")
-    parser.add_option("-T", "--timeout", default=30, type=int,
-                      help="Set the network timeout in seconds. 0 means no timeout.")
+    parser.add_option(
+        "--max-redirect",
+        default=20,
+        type=int,
+        help="Maximum number of redirections to follow for a resource.",
+    )
+    parser.add_option(
+        "--max-requests",
+        default=0,
+        type=int,
+        help="Maximum number of requests to make before exiting. (-1 used with --traversal=pattern means exit when out of new patterns)",
+    )
+    parser.add_option(
+        "--stop-on-error",
+        default=False,
+        action="store_true",
+        help="Stop after the first HTTP error (response code 400 or greater).",
+    )
+    parser.add_option(
+        "-T",
+        "--timeout",
+        default=30,
+        type=int,
+        help="Set the network timeout in seconds. 0 means no timeout.",
+    )
 
-    parser.add_option("-P", "--profile", default=False, action="store_true",
-                      help="Print the time to download each resource, and a summary of the %d slowest at the end." % PROFILE_REPORT_SIZE)
+    parser.add_option(
+        "-P",
+        "--profile",
+        default=False,
+        action="store_true",
+        help="Print the time to download each resource, and a summary of the %d slowest at the end."
+        % PROFILE_REPORT_SIZE,
+    )
 
-    parser.add_option("--stats", default=False, action="store_true",
-                      help="Print a summary of traversal patterns, if --traversal=pattern")
+    parser.add_option(
+        "--stats",
+        default=False,
+        action="store_true",
+        help="Print a summary of traversal patterns, if --traversal=pattern",
+    )
 
-    parser.add_option("-v", "--version", default=False, action="store_true",
-                      help="Print version information and exit.")
+    parser.add_option(
+        "-v",
+        "--version",
+        default=False,
+        action="store_true",
+        help="Print version information and exit.",
+    )
     return parser
 
 
@@ -506,11 +587,12 @@ def main():
     """
     parser = get_optparser()
     (options, args) = parser.parse_args()
-    loglevel = getattr(logging, options.loglevel.upper(), 'INFO')
+    loglevel = getattr(logging, options.loglevel.upper(), "INFO")
     if options.version:
         # Hopefully this can't find a different installed version?
         import pkg_resources
-        requirement = pkg_resources.Requirement.parse('spydey')
+
+        requirement = pkg_resources.Requirement.parse("spydey")
         me = pkg_resources.working_set.find(requirement)
         print(me.project_name, me.version)
         return
@@ -520,12 +602,14 @@ def main():
     spider = Spider(url, options)
     if options.transient_log and fab:
         import fabulous.logs
+
         fabulous.logs.basicConfig(level=loglevel)
     else:
         logging.basicConfig(level=loglevel)
     return spider.crawl()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
+
     sys.exit(main())
