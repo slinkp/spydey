@@ -6,3 +6,4 @@ build/
 .envrc
 .direnv
 *bak
+*eggs
